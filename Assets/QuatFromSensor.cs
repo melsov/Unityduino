@@ -5,18 +5,19 @@ using System;
 using System.Collections.Generic;
 
 public class QuatFromSensor : MonoBehaviour {
-    SerialPort stream = new SerialPort("COM5", 115200);
+    SerialPort stream = new SerialPort("COM7", 115200);
     private Rigidbody rb;
     private Quaternion rot;
     private Quaternion calOffset = Quaternion.identity;
 
 	void Awake () {
         rb = GetComponent<Rigidbody>();
+        rot = rb.rotation;
         stream.ReadTimeout = 50;
         startStream();
-        StartCoroutine(calibrate());
-        //StartCoroutine(readDuino(s => updateRotation(s)));
-	}
+        //StartCoroutine(calibrate());
+        StartCoroutine(readDuino(s => updateRotation(s)));
+    }
 
     private IEnumerator calibrate() {
         print("place sensor upright and forwards");
@@ -80,27 +81,55 @@ public class QuatFromSensor : MonoBehaviour {
     }
     
     public void FixedUpdate() {
-        rb.MoveRotation(rot);
+        try {
+            rb.MoveRotation(rot);
+        } catch(System.Exception e) {
+            print("Quaternion prob: " + e.ToString());
+        }
+    }
+/*
+TODO:
+1. Just collect all the data in some handy Vectors/Quats
+2. Try the Processing bunny way with a transformation matrix:
+
+*/
+    private void updateRotation(string s) {
+        //rot = fromRollPitchYaw(s);
+        rot = (fromString(s)); // * Quaternion.Inverse(calOffset));
     }
 
-    private void updateRotation(string s) {
-        rot = (fromString(s) * Quaternion.Inverse(calOffset));
+    private Quaternion fromRollPitchYaw(string s) {
+        string[] compos = s.Split(' ');
+        if(!compos[0].Equals("ORI")) {
+            return rot;
+        }
+        Vector3 euler;
+        euler.x = float.Parse(compos[1]);
+        euler.y = float.Parse(compos[2]);
+        euler.z = float.Parse(compos[3]);
+        return Quaternion.Euler(euler);
     }
 
     private Quaternion fromString(string s) {
         Quaternion q = new Quaternion();
         string[] compos = s.Split(' ');
+        if(!compos[0].Equals("QUAT")) {
+            return rot;
+        }
         // string "w x y z"
         foreach(string c in compos) {
             print(c);
         }
-        q.w = float.Parse(compos[0]);
-        q.x = float.Parse(compos[1]);
-        q.y = float.Parse(compos[2]);
-        q.z = float.Parse(compos[3]);
-        return q;
+        q.w = float.Parse(compos[1]);
+        q.x = float.Parse(compos[2]);
+        q.y = float.Parse(compos[3]);
+        q.z = float.Parse(compos[4]);
+        return normalizeQuat(q);
     }
 
+    private Quaternion normalizeQuat(Quaternion q) {
+        return Quaternion.Euler(q.eulerAngles);
+    }
 
     public string ReadFromArduino(int timeout = 0) {
         stream.ReadTimeout = timeout;
@@ -116,7 +145,8 @@ public class QuatFromSensor : MonoBehaviour {
         try {
             data = stream.ReadLine();
         } catch (TimeoutException) {
-            data = null;
+        } catch (System.Exception e) {
+            print("io excptn: " + e.ToString());
         }
         return data;
     }

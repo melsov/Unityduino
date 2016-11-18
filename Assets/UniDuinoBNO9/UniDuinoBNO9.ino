@@ -40,9 +40,15 @@ void setup(void) {
 }
 
 void loop() {
+  sendQuat();
+  sendOrientation();
+  delay(BNO055_SAMPLERATE_DELAY_MS);
+}
+
+void sendQuat() {
   imu::Quaternion quat = bno.getQuat();
   /* Display the quat data */
-//  Serial.print(" ");
+  Serial.print("QUAT ");
   Serial.print(quat.w(), 4);
   Serial.print(" ");
   Serial.print(quat.y(), 4);
@@ -51,6 +57,33 @@ void loop() {
   Serial.print(" ");
   Serial.print(quat.z(), 4);
   Serial.println("");
-
-  delay(BNO055_SAMPLERATE_DELAY_MS);
 }
+
+void sendOrientation() {
+/* Get a new sensor event */
+  sensors_event_t event;
+  bno.getEvent(&event);
+
+  /* Board layout:
+         +----------+
+         |         *| RST   PITCH  ROLL  HEADING
+     ADR |*        *| SCL
+     INT |*        *| SDA     ^            /->
+     PS1 |*        *| GND     |            |
+     PS0 |*        *| 3VO     Y    Z-->    \-X
+         |         *| VIN
+         +----------+
+  */
+
+  /* The processing sketch expects data as roll, pitch, heading */
+
+  Serial.print("ORI ");
+  Serial.print((float)event.orientation.x);
+  Serial.print(F(" "));
+  Serial.print((float)event.orientation.y);
+  Serial.print(F(" "));
+  Serial.print((float)event.orientation.z);
+  Serial.println(F(""));
+
+}
+
